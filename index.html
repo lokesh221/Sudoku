@@ -38,14 +38,14 @@
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
 
-        /* Highlighting */
         .cell.related { background: var(--highlight); }
         .cell.same-num { background: var(--match); color: var(--accent); }
         .cell.selected { background: var(--accent) !important; color: #000 !important; }
         .cell.fixed { font-weight: 800; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; }
+        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; transition: opacity 0.3s; }
+        .numpad button.done { opacity: 0.2; pointer-events: none; filter: grayscale(1); }
         body.light-mode .numpad button { background: #fff; border: 1px solid #ddd; color: #222; }
         
         .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 92vw; max-width: 420px; margin-top: 15px; }
@@ -53,18 +53,14 @@
         body:not(.light-mode) .controls button { color: black; }
         select { background: #333 !important; color: white !important; }
 
-        /* Victory Overlay */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; flex-direction: column;
             align-items: center; justify-content: center; z-index: 100;
             animation: fadeIn 0.5s; backdrop-filter: blur(5px);
         }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .victory-card { background: var(--cell-bg); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid var(--accent); }
         .stars { font-size: 2.5rem; color: #ffd700; margin: 10px 0; }
-        .victory-card h1 { margin: 0; color: var(--accent); }
-        .victory-card p { font-size: 1.2rem; }
     </style>
 </head>
 <body>
@@ -72,10 +68,10 @@
     <div id="timer">00:00</div>
     <div id="grid"></div>
 
-    <div class="numpad">
-        <button onclick="handleInput(1)">1</button><button onclick="handleInput(2)">2</button><button onclick="handleInput(3)">3</button>
-        <button onclick="handleInput(4)">4</button><button onclick="handleInput(5)">5</button><button onclick="handleInput(6)">6</button>
-        <button onclick="handleInput(7)">7</button><button onclick="handleInput(8)">8</button><button onclick="handleInput(9)">9</button>
+    <div class="numpad" id="numpad">
+        <button onclick="handleInput(1)" id="num-1">1</button><button onclick="handleInput(2)" id="num-2">2</button><button onclick="handleInput(3)" id="num-3">3</button>
+        <button onclick="handleInput(4)" id="num-4">4</button><button onclick="handleInput(5)" id="num-5">5</button><button onclick="handleInput(6)" id="num-6">6</button>
+        <button onclick="handleInput(7)" id="num-7">7</button><button onclick="handleInput(8)" id="num-8">8</button><button onclick="handleInput(9)" id="num-9">9</button>
         <button style="background:#cf6679; color:white;" onclick="handleInput(null)">⌫</button>
     </div>
 
@@ -83,11 +79,11 @@
         <select id="difficulty" onchange="initGame()">
             <option value="30">Easy</option><option value="45">Medium</option><option value="60">Hard</option>
         </select>
+        <button onclick="undoMove()">Undo</button>
         <button onclick="initGame()">New Game</button>
         <button onclick="toggleTheme()">Theme</button>
-        <button onclick="changeColor()">Color</button>
         <button onclick="toggleNotes()" id="notes-btn">Notes</button>
-        <button onclick="checkSolution()">Validate</button>
+        <button onclick="changeColor()">Color</button>
     </div>
 
     <div id="overlay">
@@ -95,7 +91,7 @@
             <h1>VICTORY!</h1>
             <div id="star-container" class="stars">⭐⭐⭐</div>
             <p id="final-time">Time: 00:00</p>
-            <button onclick="closeVictory()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Play Again</button>
+            <button onclick="initGame()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold;">New Game</button>
         </div>
     </div>
 
@@ -106,6 +102,7 @@
         const timerDiv = document.getElementById('timer');
         const overlay = document.getElementById('overlay');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null;
+        let history = []; // Undo stack
         let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'];
         let colorIndex = 0;
 
@@ -146,7 +143,7 @@
         }
 
         window.initGame = () => {
-            closeVictory();
+            history = []; overlay.style.display = 'none'; gridDiv.style.filter = 'none';
             startTimer();
             let board = Array.from({length: 9}, () => Array(9).fill(0));
             for (let i = 0; i < 9; i += 3) {
@@ -162,6 +159,7 @@
             const diff = document.getElementById('difficulty').value;
             const puzzle = board.map(row => row.map(v => Math.random() * 81 < (81 - diff) ? v : 0));
             render(puzzle);
+            updateNumpadStatus();
         };
 
         function highlight(cell) {
@@ -169,7 +167,7 @@
             document.querySelectorAll('.cell').forEach(el => {
                 el.classList.remove('related', 'same-num', 'selected');
                 if (el.dataset.r == r || el.dataset.c == c) el.classList.add('related');
-                if (val && el.textContent === val && val !== "") el.classList.add('same-num');
+                if (val && el.textContent === val && val !== "" && !val.includes('n')) el.classList.add('same-num');
             });
             cell.classList.add('selected');
         }
@@ -188,29 +186,79 @@
             }
         }
 
-        window.handleInput = (num) => {
+        window.handleInput = (num, isUndo = false) => {
             if (!selectedCell || selectedCell.classList.contains('fixed')) return;
-            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; }
-            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.7rem"; }
-            else { selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.4rem"; }
+            
+            if (!isUndo) {
+                history.push({
+                    cellR: selectedCell.dataset.r,
+                    cellC: selectedCell.dataset.c,
+                    oldVal: selectedCell.dataset.val || '',
+                    oldText: selectedCell.textContent,
+                    oldSize: selectedCell.style.fontSize
+                });
+            }
+
+            if (num === null) { 
+                selectedCell.textContent = ''; 
+                delete selectedCell.dataset.val; 
+            } else if (isNotesMode) { 
+                selectedCell.textContent = `n${num}`; 
+                selectedCell.style.fontSize = "0.7rem"; 
+            } else { 
+                selectedCell.textContent = num; 
+                selectedCell.dataset.val = num; 
+                selectedCell.style.fontSize = "1.4rem"; 
+            }
+            
             highlight(selectedCell);
+            updateNumpadStatus();
+            checkAutoValidate();
         };
 
-        window.toggleNotes = () => {
-            isNotesMode = !isNotesMode;
-            document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)";
+        window.undoMove = () => {
+            if (history.length === 0) return;
+            const lastMove = history.pop();
+            const cell = document.querySelector(`.cell[data-r="${lastMove.cellR}"][data-c="${lastMove.cellC}"]`);
+            selectedCell = cell;
+            cell.textContent = lastMove.oldText;
+            if (lastMove.oldVal) cell.dataset.val = lastMove.oldVal;
+            else delete cell.dataset.val;
+            cell.style.fontSize = lastMove.oldSize;
+            highlight(cell);
+            updateNumpadStatus();
         };
 
-        window.checkSolution = () => {
-            const cells = document.querySelectorAll('.cell');
-            let win = true;
-            cells.forEach(c => {
-                const val = c.classList.contains('fixed') ? c.textContent : c.dataset.val;
-                if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
+        function updateNumpadStatus() {
+            const counts = {};
+            document.querySelectorAll('.cell').forEach(c => {
+                const val = parseInt(c.dataset.val || c.textContent);
+                if (val && !c.textContent.includes('n')) {
+                    if (val === solution[c.dataset.r][c.dataset.c]) {
+                        counts[val] = (counts[val] || 0) + 1;
+                    }
+                }
             });
-            if(win) showVictory();
-            else alert("Not quite! Keep looking.");
-        };
+            for (let i = 1; i <= 9; i++) {
+                const btn = document.getElementById(`num-${i}`);
+                if (counts[i] === 9) btn.classList.add('done');
+                else btn.classList.remove('done');
+            }
+        }
+
+        function checkAutoValidate() {
+            const cells = document.querySelectorAll('.cell');
+            const filledCells = Array.from(cells).filter(c => c.textContent !== '' && !c.textContent.includes('n'));
+            if (filledCells.length === 81) {
+                let win = true;
+                cells.forEach(c => {
+                    const val = c.classList.contains('fixed') ? c.textContent : c.dataset.val;
+                    if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
+                });
+                if (win) showVictory();
+                else alert("Almost! A few numbers aren't quite right yet.");
+            }
+        }
 
         function showVictory() {
             clearInterval(timerInterval);
@@ -221,10 +269,10 @@
             gridDiv.style.filter = 'blur(8px)';
         }
 
-        window.closeVictory = () => {
-            overlay.style.display = 'none';
-            gridDiv.style.filter = 'none';
-        }
+        window.toggleNotes = () => {
+            isNotesMode = !isNotesMode;
+            document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)";
+        };
 
         window.onload = initGame;
     </script>
