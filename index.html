@@ -3,47 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
-    
     <title>Sudoku Pro Cloud</title>
-    
     <style>
         :root {
             --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
             --accent: #bb86fc; --border: #333; --thick: #888;
+            --highlight: #2c2c2c; --match: #3d3d3d;
         }
         body.light-mode {
-            --bg: #f0f0f0; --cell-bg: #ffffff; --text: #222;
-            --accent: #6200ee; --border: #ddd; --thick: #444;
+            --bg: #f5f5f5; --cell-bg: #ffffff; --text: #222;
+            --accent: #6200ee; --border: #e0e0e0; --thick: #999;
+            --highlight: #f0e6ff; --match: #d1c4e9;
         }
         body { 
-            background: var(--bg); color: var(--text); font-family: sans-serif; 
-            transition: background 0.3s, color 0.3s;
-            display: flex; flex-direction: column; align-items: center; 
-            margin: 0; padding: 10px; box-sizing: border-box; overflow: hidden;
+            background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            transition: background 0.3s; display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 10px; box-sizing: border-box; overflow: hidden; height: 100vh;
         }
-        #timer { font-family: monospace; font-size: 1.2rem; margin-bottom: 5px; color: var(--accent); }
+        #timer { font-family: monospace; font-size: 1.2rem; margin-bottom: 8px; color: var(--accent); font-weight: bold; }
+        
         #grid { 
             display: grid; grid-template-columns: repeat(9, 1fr); 
-            width: 90vw; height: 90vw; max-width: 400px; max-height: 400px;
+            width: 92vw; height: 92vw; max-width: 420px; max-height: 420px;
             background: var(--thick); border: 2px solid var(--thick);
+            border-radius: 4px; overflow: hidden;
         }
+
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem; cursor: pointer; border: 0.1px solid var(--border); box-sizing: border-box;
+            font-size: 1.4rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
+            transition: background 0.1s;
         }
+
+        /* Thicker Borders for 3x3 */
         .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
-        .cell.selected { background: #55555544; box-shadow: inset 0 0 0 2px var(--accent); }
-        .cell.fixed { font-weight: bold; }
-        .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 90vw; max-width: 400px; margin-top: 10px; }
-        .numpad button { padding: 12px 0; border: none; border-radius: 6px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.1rem; }
-        body.light-mode .numpad button { background: #ddd; color: #000; }
-        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 90vw; max-width: 400px; margin-top: 10px; }
-        .controls button, select { padding: 8px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.75rem; }
+
+        /* Highlighting Logic */
+        .cell.related { background: var(--highlight); } /* Row/Col highlight */
+        .cell.same-num { background: var(--match); color: var(--accent); } /* Matching numbers */
+        .cell.selected { background: var(--accent) !important; color: #000 !important; }
+        .cell.fixed { font-weight: 800; }
+
+        .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 92vw; max-width: 420px; margin-top: 15px; }
+        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        body.light-mode .numpad button { background: #fff; color: #222; border: 1px solid #ddd; }
+        
+        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 92vw; max-width: 420px; margin-top: 15px; }
+        .controls button, select { padding: 12px 4px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; font-size: 0.8rem; }
         body:not(.light-mode) .controls button { color: black; }
+        select { background: #333 !important; color: white !important; text-align: center; }
     </style>
 </head>
 <body>
@@ -59,10 +70,14 @@
     </div>
 
     <div class="controls">
-        <select id="difficulty"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
+        <select id="difficulty" onchange="initGame()">
+            <option value="30">Easy</option>
+            <option value="45">Medium</option>
+            <option value="60">Hard</option>
+        </select>
         <button onclick="initGame()">New Game</button>
-        <button onclick="toggleTheme()">Day/Night</button>
-        <button onclick="changeColor()">Fun Color</button>
+        <button onclick="toggleTheme()">Theme</button>
+        <button onclick="changeColor()">Color</button>
         <button onclick="toggleNotes()" id="notes-btn">Notes</button>
         <button onclick="checkSolution()">Validate</button>
     </div>
@@ -73,7 +88,7 @@
         const gridDiv = document.getElementById('grid');
         const timerDiv = document.getElementById('timer');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null;
-        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#ff8a65', '#4fc3f7'];
+        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'];
         let colorIndex = 0;
 
         function startTimer() {
@@ -92,7 +107,6 @@
         window.changeColor = () => {
             colorIndex = (colorIndex + 1) % colors.length;
             document.documentElement.style.setProperty('--accent', colors[colorIndex]);
-            document.querySelectorAll('.fixed').forEach(c => c.style.color = colors[colorIndex]);
         };
 
         function isValid(b, r, c, k) {
@@ -138,6 +152,23 @@
             render(puzzle);
         };
 
+        function highlight(cell) {
+            const r = parseInt(cell.dataset.r);
+            const c = parseInt(cell.dataset.c);
+            const val = cell.textContent;
+
+            document.querySelectorAll('.cell').forEach(el => {
+                el.classList.remove('related', 'same-num', 'selected');
+                
+                // Highlight row and column
+                if (el.dataset.r == r || el.dataset.c == c) el.classList.add('related');
+                
+                // Highlight same numbers
+                if (val && el.textContent === val && val !== "") el.classList.add('same-num');
+            });
+            cell.classList.add('selected');
+        }
+
         function render(p) {
             gridDiv.textContent = '';
             for (let r = 0; r < 9; r++) {
@@ -148,14 +179,11 @@
                     if (p[r][c] !== 0) {
                         cell.textContent = p[r][c];
                         cell.classList.add('fixed');
-                        cell.style.color = colors[colorIndex];
-                    } else {
-                        cell.onclick = () => {
-                            if (selectedCell) selectedCell.classList.remove('selected');
-                            selectedCell = cell;
-                            selectedCell.classList.add('selected');
-                        };
                     }
+                    cell.onclick = () => {
+                        selectedCell = cell;
+                        highlight(cell);
+                    };
                     gridDiv.appendChild(cell);
                 }
             }
@@ -163,16 +191,16 @@
 
         window.handleInput = (num) => {
             if (!selectedCell || selectedCell.classList.contains('fixed')) return;
-            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; return; }
-            if (isNotesMode) {
+            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; }
+            else if (isNotesMode) {
                 selectedCell.textContent = `n${num}`;
                 selectedCell.style.fontSize = "0.7rem";
             } else {
                 selectedCell.textContent = num;
                 selectedCell.dataset.val = num;
-                selectedCell.style.fontSize = "1.2rem";
-                selectedCell.style.color = "var(--text)";
+                selectedCell.style.fontSize = "1.4rem";
             }
+            highlight(selectedCell); // Re-highlight to show matching numbers
         };
 
         window.toggleNotes = () => {
@@ -188,7 +216,7 @@
                 if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
             });
             if(win) { clearInterval(timerInterval); alert(`Victory! Time: ${timerDiv.textContent}`); }
-            else { alert("Keep hunting! Something isn't right."); }
+            else { alert("Not quite! Keep looking."); }
         };
 
         window.onload = initGame;
