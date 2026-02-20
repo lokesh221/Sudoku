@@ -9,12 +9,12 @@
         :root {
             --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
             --accent: #bb86fc; --border: #333; --thick: #888;
-            --highlight: #2c2c2c; --match: #3d3d3d;
+            --highlight: #2c2c2c; --match: #3d3d3d; --error: #cf6679;
         }
         body.light-mode {
             --bg: #f5f5f5; --cell-bg: #ffffff; --text: #222;
             --accent: #6200ee; --border: #e0e0e0; --thick: #999;
-            --highlight: #f0e6ff; --match: #d1c4e9;
+            --highlight: #f0e6ff; --match: #d1c4e9; --error: #b00020;
         }
         body { 
             background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif;
@@ -42,14 +42,15 @@
         .cell.same-num { background: var(--match); color: var(--accent); }
         .cell.selected { background: var(--accent) !important; color: #000 !important; }
         .cell.fixed { font-weight: 800; }
+        .cell.conflict { color: var(--error) !important; font-weight: bold; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; transition: opacity 0.3s; }
+        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; }
         .numpad button.done { opacity: 0.2; pointer-events: none; filter: grayscale(1); }
         body.light-mode .numpad button { background: #fff; border: 1px solid #ddd; color: #222; }
         
         .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .controls button, select { padding: 12px 4px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; font-size: 0.8rem; }
+        .controls button, select { padding: 12px 4px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; font-size: 0.75rem; }
         body:not(.light-mode) .controls button { color: black; }
         select { background: #333 !important; color: white !important; }
 
@@ -80,10 +81,10 @@
             <option value="30">Easy</option><option value="45">Medium</option><option value="60">Hard</option>
         </select>
         <button onclick="undoMove()">Undo</button>
-        <button onclick="initGame()">New Game</button>
+        <button onclick="getHint()" style="background:#03dac6; color:black;">Hint</button>
+        <button onclick="initGame()">New</button>
         <button onclick="toggleTheme()">Theme</button>
         <button onclick="toggleNotes()" id="notes-btn">Notes</button>
-        <button onclick="changeColor()">Color</button>
     </div>
 
     <div id="overlay">
@@ -91,37 +92,26 @@
             <h1>VICTORY!</h1>
             <div id="star-container" class="stars">⭐⭐⭐</div>
             <p id="final-time">Time: 00:00</p>
-            <button onclick="initGame()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold;">New Game</button>
+            <button onclick="initGame()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold;">Play Again</button>
         </div>
     </div>
 
     <script>
         "use strict";
-
-        const gridDiv = document.getElementById('grid');
-        const timerDiv = document.getElementById('timer');
-        const overlay = document.getElementById('overlay');
-        let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null;
-        let history = []; // Undo stack
-        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'];
-        let colorIndex = 0;
+        const gridDiv = document.getElementById('grid'), timerDiv = document.getElementById('timer'), overlay = document.getElementById('overlay');
+        let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null, history = [];
+        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'], colorIndex = 0;
 
         function startTimer() {
-            clearInterval(timerInterval);
-            seconds = 0;
+            clearInterval(timerInterval); seconds = 0;
             timerInterval = setInterval(() => {
                 seconds++;
-                let m = Math.floor(seconds / 60).toString().padStart(2, '0');
-                let s = (seconds % 60).toString().padStart(2, '0');
-                timerDiv.textContent = `${m}:${s}`;
+                timerDiv.textContent = `${Math.floor(seconds/60).toString().padStart(2,'0')}:${(seconds%60).toString().padStart(2,'0')}`;
             }, 1000);
         }
 
         window.toggleTheme = () => document.body.classList.toggle('light-mode');
-        window.changeColor = () => {
-            colorIndex = (colorIndex + 1) % colors.length;
-            document.documentElement.style.setProperty('--accent', colors[colorIndex]);
-        };
+        window.toggleNotes = () => { isNotesMode = !isNotesMode; document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)"; };
 
         function isValid(b, r, c, k) {
             for (let i = 0; i < 9; i++) {
@@ -131,36 +121,36 @@
         }
 
         function solve(b) {
-            for (let r = 0; r < 9; r++) {
-                for (let c = 0; c < 9; c++) {
-                    if (b[r][c] === 0) {
-                        for (let k = 1; k <= 9; k++) {
-                            if (isValid(b, r, c, k)) { b[r][c] = k; if (solve(b)) return true; b[r][c] = 0; }
-                        } return false;
-                    }
-                }
-            } return true;
+            for (let r = 0; r < 9; r++) { for (let c = 0; c < 9; c++) {
+                if (b[r][c] === 0) { for (let k = 1; k <= 9; k++) {
+                    if (isValid(b, r, c, k)) { b[r][c] = k; if (solve(b)) return true; b[r][c] = 0; }
+                } return false; }
+            } } return true;
         }
 
         window.initGame = () => {
-            history = []; overlay.style.display = 'none'; gridDiv.style.filter = 'none';
-            startTimer();
+            history = []; overlay.style.display = 'none'; gridDiv.style.filter = 'none'; startTimer();
             let board = Array.from({length: 9}, () => Array(9).fill(0));
-            for (let i = 0; i < 9; i += 3) {
-                for (let r = 0; r < 3; r++) {
-                    for (let c = 0; c < 3; c++) {
-                        let num; do { num = Math.floor(Math.random() * 9) + 1; } while (!isValid(board, i+r, i+c, num));
-                        board[i+r][i+c] = num;
-                    }
-                }
-            }
-            solve(board);
-            solution = board.map(row => [...row]);
+            for (let i = 0; i < 9; i += 3) { for (let r = 0; r < 3; r++) { for (let c = 0; c < 3; c++) {
+                let num; do { num = Math.floor(Math.random() * 9) + 1; } while (!isValid(board, i+r, i+c, num));
+                board[i+r][i+c] = num;
+            } } }
+            solve(board); solution = board.map(row => [...row]);
             const diff = document.getElementById('difficulty').value;
             const puzzle = board.map(row => row.map(v => Math.random() * 81 < (81 - diff) ? v : 0));
-            render(puzzle);
-            updateNumpadStatus();
+            render(puzzle); updateNumpadStatus();
         };
+
+        function render(p) {
+            gridDiv.textContent = '';
+            for (let r = 0; r < 9; r++) { for (let c = 0; c < 9; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell'; cell.dataset.r = r; cell.dataset.c = c;
+                if (p[r][c] !== 0) { cell.textContent = p[r][c]; cell.classList.add('fixed'); }
+                cell.onclick = () => { selectedCell = cell; highlight(cell); };
+                gridDiv.appendChild(cell);
+            } }
+        }
 
         function highlight(cell) {
             const r = cell.dataset.r, c = cell.dataset.c, val = cell.textContent;
@@ -172,107 +162,58 @@
             cell.classList.add('selected');
         }
 
-        function render(p) {
-            gridDiv.textContent = '';
-            for (let r = 0; r < 9; r++) {
-                for (let c = 0; c < 9; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.dataset.r = r; cell.dataset.c = c;
-                    if (p[r][c] !== 0) { cell.textContent = p[r][c]; cell.classList.add('fixed'); }
-                    cell.onclick = () => { selectedCell = cell; highlight(cell); };
-                    gridDiv.appendChild(cell);
-                }
-            }
-        }
-
         window.handleInput = (num, isUndo = false) => {
             if (!selectedCell || selectedCell.classList.contains('fixed')) return;
-            
-            if (!isUndo) {
-                history.push({
-                    cellR: selectedCell.dataset.r,
-                    cellC: selectedCell.dataset.c,
-                    oldVal: selectedCell.dataset.val || '',
-                    oldText: selectedCell.textContent,
-                    oldSize: selectedCell.style.fontSize
-                });
-            }
+            if (!isUndo) history.push({ r: selectedCell.dataset.r, c: selectedCell.dataset.c, v: selectedCell.dataset.val || '', t: selectedCell.textContent, s: selectedCell.style.fontSize });
 
-            if (num === null) { 
-                selectedCell.textContent = ''; 
-                delete selectedCell.dataset.val; 
-            } else if (isNotesMode) { 
-                selectedCell.textContent = `n${num}`; 
-                selectedCell.style.fontSize = "0.7rem"; 
-            } else { 
-                selectedCell.textContent = num; 
-                selectedCell.dataset.val = num; 
-                selectedCell.style.fontSize = "1.4rem"; 
+            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; selectedCell.classList.remove('conflict'); }
+            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.7rem"; selectedCell.classList.remove('conflict'); }
+            else { 
+                selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.4rem"; 
+                // Conflict Check
+                if (parseInt(num) !== solution[selectedCell.dataset.r][selectedCell.dataset.c]) selectedCell.classList.add('conflict');
+                else selectedCell.classList.remove('conflict');
             }
-            
-            highlight(selectedCell);
-            updateNumpadStatus();
-            checkAutoValidate();
+            highlight(selectedCell); updateNumpadStatus(); checkAutoValidate();
         };
 
         window.undoMove = () => {
             if (history.length === 0) return;
-            const lastMove = history.pop();
-            const cell = document.querySelector(`.cell[data-r="${lastMove.cellR}"][data-c="${lastMove.cellC}"]`);
-            selectedCell = cell;
-            cell.textContent = lastMove.oldText;
-            if (lastMove.oldVal) cell.dataset.val = lastMove.oldVal;
-            else delete cell.dataset.val;
-            cell.style.fontSize = lastMove.oldSize;
-            highlight(cell);
-            updateNumpadStatus();
+            const m = history.pop();
+            selectedCell = document.querySelector(`.cell[data-r="${m.r}"][data-c="${m.c}"]`);
+            selectedCell.textContent = m.t; selectedCell.dataset.val = m.v; selectedCell.style.fontSize = m.s;
+            if (m.v && parseInt(m.v) !== solution[m.r][m.c]) selectedCell.classList.add('conflict');
+            else selectedCell.classList.remove('conflict');
+            highlight(selectedCell); updateNumpadStatus();
+        };
+
+        window.getHint = () => {
+            const empties = Array.from(document.querySelectorAll('.cell')).filter(c => !c.classList.contains('fixed') && c.textContent === '');
+            if (empties.length === 0) return;
+            const target = empties[Math.floor(Math.random() * empties.length)];
+            selectedCell = target;
+            seconds += 30; // Hint Penalty
+            handleInput(solution[target.dataset.r][target.dataset.c]);
         };
 
         function updateNumpadStatus() {
             const counts = {};
             document.querySelectorAll('.cell').forEach(c => {
-                const val = parseInt(c.dataset.val || c.textContent);
-                if (val && !c.textContent.includes('n')) {
-                    if (val === solution[c.dataset.r][c.dataset.c]) {
-                        counts[val] = (counts[val] || 0) + 1;
-                    }
-                }
+                const v = parseInt(c.dataset.val || c.textContent);
+                if (v && !c.textContent.includes('n') && v === solution[c.dataset.r][c.dataset.c]) counts[v] = (counts[v] || 0) + 1;
             });
-            for (let i = 1; i <= 9; i++) {
-                const btn = document.getElementById(`num-${i}`);
-                if (counts[i] === 9) btn.classList.add('done');
-                else btn.classList.remove('done');
-            }
+            for (let i = 1; i <= 9; i++) document.getElementById(`num-${i}`).classList.toggle('done', counts[i] === 9);
         }
 
         function checkAutoValidate() {
-            const cells = document.querySelectorAll('.cell');
-            const filledCells = Array.from(cells).filter(c => c.textContent !== '' && !c.textContent.includes('n'));
-            if (filledCells.length === 81) {
-                let win = true;
-                cells.forEach(c => {
-                    const val = c.classList.contains('fixed') ? c.textContent : c.dataset.val;
-                    if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
-                });
-                if (win) showVictory();
-                else alert("Almost! A few numbers aren't quite right yet.");
+            const cells = Array.from(document.querySelectorAll('.cell'));
+            if (cells.every(c => (c.dataset.val || c.textContent) == solution[c.dataset.r][c.dataset.c])) {
+                clearInterval(timerInterval);
+                document.getElementById('star-container').textContent = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
+                document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
+                overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(8px)';
             }
         }
-
-        function showVictory() {
-            clearInterval(timerInterval);
-            let starCount = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
-            document.getElementById('star-container').textContent = starCount;
-            document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
-            overlay.style.display = 'flex';
-            gridDiv.style.filter = 'blur(8px)';
-        }
-
-        window.toggleNotes = () => {
-            isNotesMode = !isNotesMode;
-            document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)";
-        };
 
         window.onload = initGame;
     </script>
