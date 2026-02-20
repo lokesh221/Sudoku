@@ -17,7 +17,7 @@
             --highlight: #f0e6ff; --match: #d1c4e9;
         }
         body { 
-            background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif;
             transition: background 0.3s; display: flex; flex-direction: column; align-items: center; 
             margin: 0; padding: 10px; box-sizing: border-box; overflow: hidden; height: 100vh;
         }
@@ -27,34 +27,44 @@
             display: grid; grid-template-columns: repeat(9, 1fr); 
             width: 92vw; height: 92vw; max-width: 420px; max-height: 420px;
             background: var(--thick); border: 2px solid var(--thick);
-            border-radius: 4px; overflow: hidden;
+            border-radius: 4px; transition: filter 0.5s ease;
         }
 
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
             font-size: 1.4rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
-            transition: background 0.1s;
         }
-
-        /* Thicker Borders for 3x3 */
         .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
 
-        /* Highlighting Logic */
-        .cell.related { background: var(--highlight); } /* Row/Col highlight */
-        .cell.same-num { background: var(--match); color: var(--accent); } /* Matching numbers */
+        /* Highlighting */
+        .cell.related { background: var(--highlight); }
+        .cell.same-num { background: var(--match); color: var(--accent); }
         .cell.selected { background: var(--accent) !important; color: #000 !important; }
         .cell.fixed { font-weight: 800; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-        body.light-mode .numpad button { background: #fff; color: #222; border: 1px solid #ddd; }
+        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; }
+        body.light-mode .numpad button { background: #fff; border: 1px solid #ddd; color: #222; }
         
         .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 92vw; max-width: 420px; margin-top: 15px; }
         .controls button, select { padding: 12px 4px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; font-size: 0.8rem; }
         body:not(.light-mode) .controls button { color: black; }
-        select { background: #333 !important; color: white !important; text-align: center; }
+        select { background: #333 !important; color: white !important; }
+
+        /* Victory Overlay */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100;
+            animation: fadeIn 0.5s; backdrop-filter: blur(5px);
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .victory-card { background: var(--cell-bg); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid var(--accent); }
+        .stars { font-size: 2.5rem; color: #ffd700; margin: 10px 0; }
+        .victory-card h1 { margin: 0; color: var(--accent); }
+        .victory-card p { font-size: 1.2rem; }
     </style>
 </head>
 <body>
@@ -71,9 +81,7 @@
 
     <div class="controls">
         <select id="difficulty" onchange="initGame()">
-            <option value="30">Easy</option>
-            <option value="45">Medium</option>
-            <option value="60">Hard</option>
+            <option value="30">Easy</option><option value="45">Medium</option><option value="60">Hard</option>
         </select>
         <button onclick="initGame()">New Game</button>
         <button onclick="toggleTheme()">Theme</button>
@@ -82,11 +90,21 @@
         <button onclick="checkSolution()">Validate</button>
     </div>
 
+    <div id="overlay">
+        <div class="victory-card">
+            <h1>VICTORY!</h1>
+            <div id="star-container" class="stars">⭐⭐⭐</div>
+            <p id="final-time">Time: 00:00</p>
+            <button onclick="closeVictory()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Play Again</button>
+        </div>
+    </div>
+
     <script>
         "use strict";
 
         const gridDiv = document.getElementById('grid');
         const timerDiv = document.getElementById('timer');
+        const overlay = document.getElementById('overlay');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null;
         let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'];
         let colorIndex = 0;
@@ -103,7 +121,6 @@
         }
 
         window.toggleTheme = () => document.body.classList.toggle('light-mode');
-
         window.changeColor = () => {
             colorIndex = (colorIndex + 1) % colors.length;
             document.documentElement.style.setProperty('--accent', colors[colorIndex]);
@@ -111,11 +128,9 @@
 
         function isValid(b, r, c, k) {
             for (let i = 0; i < 9; i++) {
-                const m = 3 * Math.floor(r/3) + Math.floor(i/3);
-                const n = 3 * Math.floor(c/3) + i % 3;
+                const m = 3 * Math.floor(r/3) + Math.floor(i/3), n = 3 * Math.floor(c/3) + i % 3;
                 if (b[r][i] == k || b[i][c] == k || b[m][n] == k) return false;
-            }
-            return true;
+            } return true;
         }
 
         function solve(b) {
@@ -123,11 +138,7 @@
                 for (let c = 0; c < 9; c++) {
                     if (b[r][c] === 0) {
                         for (let k = 1; k <= 9; k++) {
-                            if (isValid(b, r, c, k)) {
-                                b[r][c] = k;
-                                if (solve(b)) return true;
-                                b[r][c] = 0;
-                            }
+                            if (isValid(b, r, c, k)) { b[r][c] = k; if (solve(b)) return true; b[r][c] = 0; }
                         } return false;
                     }
                 }
@@ -135,6 +146,7 @@
         }
 
         window.initGame = () => {
+            closeVictory();
             startTimer();
             let board = Array.from({length: 9}, () => Array(9).fill(0));
             for (let i = 0; i < 9; i += 3) {
@@ -153,17 +165,10 @@
         };
 
         function highlight(cell) {
-            const r = parseInt(cell.dataset.r);
-            const c = parseInt(cell.dataset.c);
-            const val = cell.textContent;
-
+            const r = cell.dataset.r, c = cell.dataset.c, val = cell.textContent;
             document.querySelectorAll('.cell').forEach(el => {
                 el.classList.remove('related', 'same-num', 'selected');
-                
-                // Highlight row and column
                 if (el.dataset.r == r || el.dataset.c == c) el.classList.add('related');
-                
-                // Highlight same numbers
                 if (val && el.textContent === val && val !== "") el.classList.add('same-num');
             });
             cell.classList.add('selected');
@@ -176,14 +181,8 @@
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.dataset.r = r; cell.dataset.c = c;
-                    if (p[r][c] !== 0) {
-                        cell.textContent = p[r][c];
-                        cell.classList.add('fixed');
-                    }
-                    cell.onclick = () => {
-                        selectedCell = cell;
-                        highlight(cell);
-                    };
+                    if (p[r][c] !== 0) { cell.textContent = p[r][c]; cell.classList.add('fixed'); }
+                    cell.onclick = () => { selectedCell = cell; highlight(cell); };
                     gridDiv.appendChild(cell);
                 }
             }
@@ -192,15 +191,9 @@
         window.handleInput = (num) => {
             if (!selectedCell || selectedCell.classList.contains('fixed')) return;
             if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; }
-            else if (isNotesMode) {
-                selectedCell.textContent = `n${num}`;
-                selectedCell.style.fontSize = "0.7rem";
-            } else {
-                selectedCell.textContent = num;
-                selectedCell.dataset.val = num;
-                selectedCell.style.fontSize = "1.4rem";
-            }
-            highlight(selectedCell); // Re-highlight to show matching numbers
+            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.7rem"; }
+            else { selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.4rem"; }
+            highlight(selectedCell);
         };
 
         window.toggleNotes = () => {
@@ -215,9 +208,23 @@
                 const val = c.classList.contains('fixed') ? c.textContent : c.dataset.val;
                 if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
             });
-            if(win) { clearInterval(timerInterval); alert(`Victory! Time: ${timerDiv.textContent}`); }
-            else { alert("Not quite! Keep looking."); }
+            if(win) showVictory();
+            else alert("Not quite! Keep looking.");
         };
+
+        function showVictory() {
+            clearInterval(timerInterval);
+            let starCount = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
+            document.getElementById('star-container').textContent = starCount;
+            document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
+            overlay.style.display = 'flex';
+            gridDiv.style.filter = 'blur(8px)';
+        }
+
+        window.closeVictory = () => {
+            overlay.style.display = 'none';
+            gridDiv.style.filter = 'none';
+        }
 
         window.onload = initGame;
     </script>
