@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
-    <title>Sudoku Pro Cloud</title>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+    <title>Sudoku Pro</title>
+    
     <style>
         :root {
             --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
@@ -12,27 +15,26 @@
             --highlight: #2c2c2c; --match: #3d3d3d; --error: #cf6679;
         }
         body.light-mode {
-            --bg: #f5f5f5; --cell-bg: #ffffff; --text: #222;
-            --accent: #6200ee; --border: #e0e0e0; --thick: #999;
-            --highlight: #f0e6ff; --match: #d1c4e9; --error: #b00020;
+            --bg: #f8f9fa; --cell-bg: #ffffff; --text: #212529;
+            --accent: #6200ee; --border: #dee2e6; --thick: #adb5bd;
+            --highlight: #f1f3f5; --match: #e9ecef; --error: #d00000;
         }
         body { 
             background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif;
-            transition: background 0.3s; display: flex; flex-direction: column; align-items: center; 
-            margin: 0; padding: 10px; box-sizing: border-box; overflow: hidden; height: 100vh;
+            transition: 0.3s; display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 10px; height: 100vh; overflow: hidden;
         }
-        #timer { font-family: monospace; font-size: 1.2rem; margin-bottom: 8px; color: var(--accent); font-weight: bold; }
+        #timer { font-family: monospace; font-size: 1.3rem; margin-bottom: 5px; color: var(--accent); font-weight: bold; }
         
         #grid { 
             display: grid; grid-template-columns: repeat(9, 1fr); 
-            width: 92vw; height: 92vw; max-width: 420px; max-height: 420px;
-            background: var(--thick); border: 2px solid var(--thick);
-            border-radius: 4px; transition: filter 0.5s ease;
+            width: 94vw; height: 94vw; max-width: 420px; max-height: 420px;
+            background: var(--thick); border: 2.5px solid var(--thick); border-radius: 4px;
         }
 
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
-            font-size: 1.4rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
+            font-size: 1.5rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
         }
         .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
         .cell:nth-child(9n) { border-right: none; }
@@ -41,27 +43,25 @@
         .cell.related { background: var(--highlight); }
         .cell.same-num { background: var(--match); color: var(--accent); }
         .cell.selected { background: var(--accent) !important; color: #000 !important; }
-        .cell.fixed { font-weight: 800; }
-        .cell.conflict { color: var(--error) !important; font-weight: bold; }
+        .cell.fixed { font-weight: 900; }
+        .cell.conflict { color: var(--error) !important; }
 
-        .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .numpad button { padding: 14px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.2rem; }
-        .numpad button.done { opacity: 0.2; pointer-events: none; filter: grayscale(1); }
+        .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
+        .numpad button { padding: 12px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.3rem; }
+        .numpad button.done { opacity: 0.15; pointer-events: none; }
         body.light-mode .numpad button { background: #fff; border: 1px solid #ddd; color: #222; }
         
-        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 92vw; max-width: 420px; margin-top: 15px; }
-        .controls button, select { padding: 12px 4px; border: none; border-radius: 8px; background: var(--accent); color: white; font-weight: bold; font-size: 0.75rem; }
-        body:not(.light-mode) .controls button { color: black; }
-        select { background: #333 !important; color: white !important; }
+        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
+        .controls button, select { padding: 10px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.7rem; text-transform: uppercase; }
+        body:not(.light-mode) .controls button { color: #000; }
+        select { background: #333 !important; color: white !important; appearance: none; text-align: center; }
 
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: none; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 100;
-            animation: fadeIn 0.5s; backdrop-filter: blur(5px);
+            background: rgba(0,0,0,0.9); display: none; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(8px);
         }
-        .victory-card { background: var(--cell-bg); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid var(--accent); }
-        .stars { font-size: 2.5rem; color: #ffd700; margin: 10px 0; }
+        .victory-card { background: var(--cell-bg); padding: 40px; border-radius: 24px; text-align: center; border: 2px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
@@ -69,30 +69,29 @@
     <div id="timer">00:00</div>
     <div id="grid"></div>
 
-    <div class="numpad" id="numpad">
+    <div class="numpad">
         <button onclick="handleInput(1)" id="num-1">1</button><button onclick="handleInput(2)" id="num-2">2</button><button onclick="handleInput(3)" id="num-3">3</button>
         <button onclick="handleInput(4)" id="num-4">4</button><button onclick="handleInput(5)" id="num-5">5</button><button onclick="handleInput(6)" id="num-6">6</button>
         <button onclick="handleInput(7)" id="num-7">7</button><button onclick="handleInput(8)" id="num-8">8</button><button onclick="handleInput(9)" id="num-9">9</button>
-        <button style="background:#cf6679; color:white;" onclick="handleInput(null)">⌫</button>
+        <button style="background:var(--error); color:white;" onclick="handleInput(null)">⌫</button>
     </div>
 
     <div class="controls">
-        <select id="difficulty" onchange="initGame()">
-            <option value="30">Easy</option><option value="45">Medium</option><option value="60">Hard</option>
-        </select>
+        <select id="difficulty" onchange="initGame()"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
         <button onclick="undoMove()">Undo</button>
-        <button onclick="getHint()" style="background:#03dac6; color:black;">Hint</button>
-        <button onclick="initGame()">New</button>
+        <button onclick="getHint()" style="background:#03dac6;">Hint</button>
+        <button onclick="initGame()" style="background:#ffb74d;">New</button>
         <button onclick="toggleTheme()">Theme</button>
-        <button onclick="toggleNotes()" id="notes-btn">Notes</button>
+        <button onclick="changeColor()">Color</button>
+        <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 3; margin-top: 2px;">Notes Off</button>
     </div>
 
     <div id="overlay">
         <div class="victory-card">
-            <h1>VICTORY!</h1>
-            <div id="star-container" class="stars">⭐⭐⭐</div>
-            <p id="final-time">Time: 00:00</p>
-            <button onclick="initGame()" style="padding:10px 20px; background:var(--accent); border:none; border-radius:8px; font-weight:bold;">Play Again</button>
+            <h1 style="color:var(--accent); margin-top:0;">VICTORY!</h1>
+            <div id="star-container" style="font-size:2.5rem; margin:10px 0;">⭐⭐⭐</div>
+            <p id="final-time" style="font-size:1.2rem;">Time: 00:00</p>
+            <button onclick="initGame()" style="padding:12px 24px; background:var(--accent); border:none; border-radius:8px; font-weight:bold; width:100%;">Play Again</button>
         </div>
     </div>
 
@@ -100,7 +99,8 @@
         "use strict";
         const gridDiv = document.getElementById('grid'), timerDiv = document.getElementById('timer'), overlay = document.getElementById('overlay');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null, history = [];
-        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7'], colorIndex = 0;
+        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7', '#ff8a65'];
+        let colorIndex = 0;
 
         function startTimer() {
             clearInterval(timerInterval); seconds = 0;
@@ -111,7 +111,17 @@
         }
 
         window.toggleTheme = () => document.body.classList.toggle('light-mode');
-        window.toggleNotes = () => { isNotesMode = !isNotesMode; document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)"; };
+        window.changeColor = () => {
+            colorIndex = (colorIndex + 1) % colors.length;
+            document.documentElement.style.setProperty('--accent', colors[colorIndex]);
+        };
+
+        window.toggleNotes = () => { 
+            isNotesMode = !isNotesMode; 
+            const btn = document.getElementById('notes-btn');
+            btn.textContent = isNotesMode ? "Notes On" : "Notes Off";
+            btn.style.background = isNotesMode ? "#03dac6" : "var(--accent)"; 
+        };
 
         function isValid(b, r, c, k) {
             for (let i = 0; i < 9; i++) {
@@ -167,10 +177,9 @@
             if (!isUndo) history.push({ r: selectedCell.dataset.r, c: selectedCell.dataset.c, v: selectedCell.dataset.val || '', t: selectedCell.textContent, s: selectedCell.style.fontSize });
 
             if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; selectedCell.classList.remove('conflict'); }
-            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.7rem"; selectedCell.classList.remove('conflict'); }
+            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.75rem"; selectedCell.classList.remove('conflict'); }
             else { 
-                selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.4rem"; 
-                // Conflict Check
+                selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.5rem"; 
                 if (parseInt(num) !== solution[selectedCell.dataset.r][selectedCell.dataset.c]) selectedCell.classList.add('conflict');
                 else selectedCell.classList.remove('conflict');
             }
@@ -191,8 +200,7 @@
             const empties = Array.from(document.querySelectorAll('.cell')).filter(c => !c.classList.contains('fixed') && c.textContent === '');
             if (empties.length === 0) return;
             const target = empties[Math.floor(Math.random() * empties.length)];
-            selectedCell = target;
-            seconds += 30; // Hint Penalty
+            selectedCell = target; seconds += 30;
             handleInput(solution[target.dataset.r][target.dataset.c]);
         };
 
@@ -211,10 +219,9 @@
                 clearInterval(timerInterval);
                 document.getElementById('star-container').textContent = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
                 document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
-                overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(8px)';
+                overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(10px)';
             }
         }
-
         window.onload = initGame;
     </script>
 </body>
