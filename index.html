@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
+    
+    <title>Sudoku Pro Cloud</title>
+    
+    <style>
+        :root {
+            --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
+            --accent: #bb86fc; --border: #333; --thick: #888;
+        }
+        body.light-mode {
+            --bg: #f0f0f0; --cell-bg: #ffffff; --text: #222;
+            --accent: #6200ee; --border: #ddd; --thick: #444;
+        }
+        body { 
+            background: var(--bg); color: var(--text); font-family: sans-serif; 
+            transition: background 0.3s, color 0.3s;
+            display: flex; flex-direction: column; align-items: center; 
+            margin: 0; padding: 10px; box-sizing: border-box; overflow: hidden;
+        }
+        #timer { font-family: monospace; font-size: 1.2rem; margin-bottom: 5px; color: var(--accent); }
+        #grid { 
+            display: grid; grid-template-columns: repeat(9, 1fr); 
+            width: 90vw; height: 90vw; max-width: 400px; max-height: 400px;
+            background: var(--thick); border: 2px solid var(--thick);
+        }
+        .cell {
+            background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; cursor: pointer; border: 0.1px solid var(--border); box-sizing: border-box;
+        }
+        .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
+        .cell.selected { background: #55555544; box-shadow: inset 0 0 0 2px var(--accent); }
+        .cell.fixed { font-weight: bold; }
+        .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: 90vw; max-width: 400px; margin-top: 10px; }
+        .numpad button { padding: 12px 0; border: none; border-radius: 6px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.1rem; }
+        body.light-mode .numpad button { background: #ddd; color: #000; }
+        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 90vw; max-width: 400px; margin-top: 10px; }
+        .controls button, select { padding: 8px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.75rem; }
+        body:not(.light-mode) .controls button { color: black; }
+    </style>
+</head>
+<body>
+
+    <div id="timer">00:00</div>
+    <div id="grid"></div>
+
+    <div class="numpad">
+        <button onclick="handleInput(1)">1</button><button onclick="handleInput(2)">2</button><button onclick="handleInput(3)">3</button>
+        <button onclick="handleInput(4)">4</button><button onclick="handleInput(5)">5</button><button onclick="handleInput(6)">6</button>
+        <button onclick="handleInput(7)">7</button><button onclick="handleInput(8)">8</button><button onclick="handleInput(9)">9</button>
+        <button style="background:#cf6679; color:white;" onclick="handleInput(null)">⌫</button>
+    </div>
+
+    <div class="controls">
+        <select id="difficulty"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
+        <button onclick="initGame()">New Game</button>
+        <button onclick="toggleTheme()">Day/Night</button>
+        <button onclick="changeColor()">Fun Color</button>
+        <button onclick="toggleNotes()" id="notes-btn">Notes</button>
+        <button onclick="checkSolution()">Validate</button>
+    </div>
+
+    <script>
+        "use strict";
+
+        const gridDiv = document.getElementById('grid');
+        const timerDiv = document.getElementById('timer');
+        let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null;
+        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#ff8a65', '#4fc3f7'];
+        let colorIndex = 0;
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            seconds = 0;
+            timerInterval = setInterval(() => {
+                seconds++;
+                let m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                let s = (seconds % 60).toString().padStart(2, '0');
+                timerDiv.textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        window.toggleTheme = () => document.body.classList.toggle('light-mode');
+
+        window.changeColor = () => {
+            colorIndex = (colorIndex + 1) % colors.length;
+            document.documentElement.style.setProperty('--accent', colors[colorIndex]);
+            document.querySelectorAll('.fixed').forEach(c => c.style.color = colors[colorIndex]);
+        };
+
+        function isValid(b, r, c, k) {
+            for (let i = 0; i < 9; i++) {
+                const m = 3 * Math.floor(r/3) + Math.floor(i/3);
+                const n = 3 * Math.floor(c/3) + i % 3;
+                if (b[r][i] == k || b[i][c] == k || b[m][n] == k) return false;
+            }
+            return true;
+        }
+
+        function solve(b) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (b[r][c] === 0) {
+                        for (let k = 1; k <= 9; k++) {
+                            if (isValid(b, r, c, k)) {
+                                b[r][c] = k;
+                                if (solve(b)) return true;
+                                b[r][c] = 0;
+                            }
+                        } return false;
+                    }
+                }
+            } return true;
+        }
+
+        window.initGame = () => {
+            startTimer();
+            let board = Array.from({length: 9}, () => Array(9).fill(0));
+            for (let i = 0; i < 9; i += 3) {
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        let num; do { num = Math.floor(Math.random() * 9) + 1; } while (!isValid(board, i+r, i+c, num));
+                        board[i+r][i+c] = num;
+                    }
+                }
+            }
+            solve(board);
+            solution = board.map(row => [...row]);
+            const diff = document.getElementById('difficulty').value;
+            const puzzle = board.map(row => row.map(v => Math.random() * 81 < (81 - diff) ? v : 0));
+            render(puzzle);
+        };
+
+        function render(p) {
+            gridDiv.textContent = '';
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.r = r; cell.dataset.c = c;
+                    if (p[r][c] !== 0) {
+                        cell.textContent = p[r][c];
+                        cell.classList.add('fixed');
+                        cell.style.color = colors[colorIndex];
+                    } else {
+                        cell.onclick = () => {
+                            if (selectedCell) selectedCell.classList.remove('selected');
+                            selectedCell = cell;
+                            selectedCell.classList.add('selected');
+                        };
+                    }
+                    gridDiv.appendChild(cell);
+                }
+            }
+        }
+
+        window.handleInput = (num) => {
+            if (!selectedCell || selectedCell.classList.contains('fixed')) return;
+            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; return; }
+            if (isNotesMode) {
+                selectedCell.textContent = `n${num}`;
+                selectedCell.style.fontSize = "0.7rem";
+            } else {
+                selectedCell.textContent = num;
+                selectedCell.dataset.val = num;
+                selectedCell.style.fontSize = "1.2rem";
+                selectedCell.style.color = "var(--text)";
+            }
+        };
+
+        window.toggleNotes = () => {
+            isNotesMode = !isNotesMode;
+            document.getElementById('notes-btn').style.background = isNotesMode ? "#03dac6" : "var(--accent)";
+        };
+
+        window.checkSolution = () => {
+            const cells = document.querySelectorAll('.cell');
+            let win = true;
+            cells.forEach(c => {
+                const val = c.classList.contains('fixed') ? c.textContent : c.dataset.val;
+                if (parseInt(val) !== solution[c.dataset.r][c.dataset.c]) win = false;
+            });
+            if(win) { clearInterval(timerInterval); alert(`Victory! Time: ${timerDiv.textContent}`); }
+            else { alert("Keep hunting! Something isn't right."); }
+        };
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
