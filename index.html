@@ -44,10 +44,22 @@
 
         .cell.related { background: var(--highlight); }
         .cell.same-num { background: var(--match); outline: 2px inset rgba(255,255,255,0.05); }
-        .cell.selected { background: var(--accent) !important; color: #ffffff !important; }
+        .cell.selected { background: var(--accent) !important; color: #ffffff !important; font-weight: bold; }
         
         .cell.fixed { font-weight: 900; color: var(--fixed-text); }
-        body:not(.hard-mode-active) .cell.conflict { color: var(--error) !important; font-weight: bold; text-decoration: underline; }
+        
+        /* THE FIX: Conflict Visibility */
+        body:not(.hard-mode-active) .cell.conflict { 
+            color: #ff1744 !important; 
+            font-weight: 900; 
+            text-shadow: 0 0 8px rgba(255,255,255,0.6); 
+            background: rgba(255, 255, 255, 0.1) !important;
+            text-decoration: underline double;
+        }
+        body.light-mode:not(.hard-mode-active) .cell.conflict {
+            text-shadow: 0 0 5px rgba(0,0,0,0.1);
+            background: rgba(0, 0, 0, 0.05) !important;
+        }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
         .numpad button { padding: 12px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.3rem; }
@@ -76,16 +88,18 @@
         <button onclick="handleInput(1)" id="num-1">1</button><button onclick="handleInput(2)" id="num-2">2</button><button onclick="handleInput(3)" id="num-3">3</button>
         <button onclick="handleInput(4)" id="num-4">4</button><button onclick="handleInput(5)" id="num-5">5</button><button onclick="handleInput(6)" id="num-6">6</button>
         <button onclick="handleInput(7)" id="num-7">7</button><button onclick="handleInput(8)" id="num-8">8</button><button onclick="handleInput(9)" id="num-9">9</button>
-        <button style="background:var(--error); color:white !important;" onclick="handleInput(null)">⌫</button>
+        <button style="background:#d32f2f; color:white !important;" onclick="handleInput(null)">⌫</button>
     </div>
 
     <div class="controls">
         <select id="difficulty" onchange="initGame()"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
         <button onclick="undoMove()">Undo</button>
         <button onclick="initGame()" style="background:#e67e22 !important;">New Game</button>
+        
         <button onclick="getHint()" style="background:#009688 !important;">Hint</button>
         <button onclick="toggleHardMode()" id="hard-btn">Hard Off</button>
         <button onclick="toggleTheme()">Theme</button>
+        
         <button onclick="changeColor()">Color</button>
         <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 2;">Notes Off</button>
     </div>
@@ -104,9 +118,13 @@
         const gridDiv = document.getElementById('grid'), timerDiv = document.getElementById('timer'), overlay = document.getElementById('overlay');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, isHardMode = false, selectedCell = null, history = [];
         
+        // Slightly adjusted palettes for better contrast against red
         const palettes = [
-            ['#bb86fc', '#6200ee'], ['#03dac6', '#00796b'], 
-            ['#ffb74d', '#d35400'], ['#4fc3f7', '#0984e3'], ['#ff8a65', '#c0392b']
+            ['#bb86fc', '#6200ee'], // Purple
+            ['#03dac6', '#00796b'], // Teal
+            ['#ffcc80', '#e67e22'], // Gold/Amber (Lightened for dark mode)
+            ['#81d4fa', '#0984e3'], // Sky Blue
+            ['#ef9a9a', '#c0392b']  // Soft Red
         ];
         let paletteIndex = 0;
 
@@ -125,7 +143,7 @@
             document.body.classList.toggle('hard-mode-active', isHardMode);
             const btn = document.getElementById('hard-btn');
             btn.textContent = isHardMode ? "Hard On" : "Hard Off";
-            btn.style.background = isHardMode ? "#e91e63" : "var(--accent)";
+            btn.style.background = isHardMode ? "#c2185b" : "var(--accent)";
         };
 
         function startTimer() {
