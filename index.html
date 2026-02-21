@@ -47,7 +47,6 @@
         .cell.selected { background: var(--accent) !important; color: #ffffff !important; }
         
         .cell.fixed { font-weight: 900; color: var(--fixed-text); }
-        /* Only shows red if hardMode is false */
         body:not(.hard-mode-active) .cell.conflict { color: var(--error) !important; font-weight: bold; text-decoration: underline; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
@@ -83,11 +82,12 @@
     <div class="controls">
         <select id="difficulty" onchange="initGame()"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
         <button onclick="undoMove()">Undo</button>
+        <button onclick="initGame()" style="background:#e67e22 !important;">New Game</button>
         <button onclick="getHint()" style="background:#009688 !important;">Hint</button>
         <button onclick="toggleHardMode()" id="hard-btn">Hard Off</button>
         <button onclick="toggleTheme()">Theme</button>
         <button onclick="changeColor()">Color</button>
-        <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 3; margin-top: 2px;">Notes Off</button>
+        <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 2;">Notes Off</button>
     </div>
 
     <div id="overlay">
@@ -105,11 +105,8 @@
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, isHardMode = false, selectedCell = null, history = [];
         
         const palettes = [
-            ['#bb86fc', '#6200ee'], // Purple
-            ['#03dac6', '#00796b'], // Teal
-            ['#ffb74d', '#d35400'], // Orange
-            ['#4fc3f7', '#0984e3'], // Blue
-            ['#ff8a65', '#c0392b']  // Coral/Red
+            ['#bb86fc', '#6200ee'], ['#03dac6', '#00796b'], 
+            ['#ffb74d', '#d35400'], ['#4fc3f7', '#0984e3'], ['#ff8a65', '#c0392b']
         ];
         let paletteIndex = 0;
 
@@ -143,7 +140,6 @@
             isNotesMode = !isNotesMode; 
             const btn = document.getElementById('notes-btn');
             btn.textContent = isNotesMode ? "Notes On" : "Notes Off";
-            btn.style.filter = isNotesMode ? "brightness(1.1)" : "none"; 
         };
 
         function isValid(b, r, c, k) {
@@ -245,8 +241,6 @@
                     document.getElementById('star-container').textContent = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
                     document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
                     overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(10px)';
-                } else if (!isHardMode) {
-                   alert("Not quite! Check the numbers in red.");
                 }
             }
         }
