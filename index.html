@@ -10,18 +10,21 @@
     
     <style>
         :root {
+            /* Default Dark Mode Palette */
             --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
             --accent: #bb86fc; --border: #333; --thick: #888;
             --highlight: #2c2c2c; --match: #3d3d3d; --error: #cf6679;
+            --fixed-text: var(--accent);
         }
         body.light-mode {
-            --bg: #f8f9fa; --cell-bg: #ffffff; --text: #212529;
-            --accent: #6200ee; --border: #dee2e6; --thick: #adb5bd;
-            --highlight: #f1f3f5; --match: #e9ecef; --error: #d00000;
+            --bg: #ffffff; --cell-bg: #f8f9fa; --text: #212529;
+            --accent: #6200ee; --border: #dee2e6; --thick: #495057;
+            --highlight: #e9ecef; --match: #dee2e6; --error: #d00000;
+            --fixed-text: var(--accent);
         }
         body { 
             background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif;
-            transition: 0.3s; display: flex; flex-direction: column; align-items: center; 
+            transition: 0.2s; display: flex; flex-direction: column; align-items: center; 
             margin: 0; padding: 10px; height: 100vh; overflow: hidden;
         }
         #timer { font-family: monospace; font-size: 1.3rem; margin-bottom: 5px; color: var(--accent); font-weight: bold; }
@@ -35,33 +38,39 @@
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
             font-size: 1.5rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
+            color: var(--text);
         }
+        /* Grid Lines */
         .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
 
+        /* States */
         .cell.related { background: var(--highlight); }
-        .cell.same-num { background: var(--match); color: var(--accent); }
-        .cell.selected { background: var(--accent) !important; color: #000 !important; }
-        .cell.fixed { font-weight: 900; }
-        .cell.conflict { color: var(--error) !important; }
+        .cell.same-num { background: var(--match); }
+        .cell.selected { background: var(--accent) !important; color: #fff !important; }
+        body:not(.light-mode) .cell.selected { color: #000 !important; }
+        
+        .cell.fixed { font-weight: 900; color: var(--fixed-text); }
+        .cell.conflict { color: var(--error) !important; font-weight: bold; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
         .numpad button { padding: 12px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.3rem; }
-        .numpad button.done { opacity: 0.15; pointer-events: none; }
-        body.light-mode .numpad button { background: #fff; border: 1px solid #ddd; color: #222; }
+        .numpad button.done { opacity: 0.1; pointer-events: none; }
+        body.light-mode .numpad button { background: #eee; color: #222; border: 1px solid #ccc; }
         
         .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
-        .controls button, select { padding: 10px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.7rem; text-transform: uppercase; }
-        body:not(.light-mode) .controls button { color: #000; }
-        select { background: #333 !important; color: white !important; appearance: none; text-align: center; }
+        .controls button, select { padding: 10px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.7rem; }
+        body.light-mode .controls button { color: white; }
+        body:not(.light-mode) .controls button { color: black; }
+        select { background: #333 !important; color: white !important; text-align-last: center; }
 
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); display: none; flex-direction: column;
             align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(8px);
         }
-        .victory-card { background: var(--cell-bg); padding: 40px; border-radius: 24px; text-align: center; border: 2px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .victory-card { background: var(--cell-bg); padding: 40px; border-radius: 24px; text-align: center; border: 2px solid var(--accent); }
     </style>
 </head>
 <body>
@@ -79,8 +88,8 @@
     <div class="controls">
         <select id="difficulty" onchange="initGame()"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
         <button onclick="undoMove()">Undo</button>
-        <button onclick="getHint()" style="background:#03dac6;">Hint</button>
-        <button onclick="initGame()" style="background:#ffb74d;">New</button>
+        <button onclick="getHint()" style="background:#00b894; color:white !important;">Hint</button>
+        <button onclick="initGame()" style="background:#f39c12; color:white !important;">New</button>
         <button onclick="toggleTheme()">Theme</button>
         <button onclick="changeColor()">Color</button>
         <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 3; margin-top: 2px;">Notes Off</button>
@@ -99,8 +108,16 @@
         "use strict";
         const gridDiv = document.getElementById('grid'), timerDiv = document.getElementById('timer'), overlay = document.getElementById('overlay');
         let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null, history = [];
-        let colors = ['#bb86fc', '#03dac6', '#ffb74d', '#4fc3f7', '#ff8a65'];
-        let colorIndex = 0;
+        
+        // Define Palettes: [Dark Theme Color, Light Theme Color]
+        const palettes = [
+            ['#bb86fc', '#6200ee'], // Purple
+            ['#03dac6', '#008b7d'], // Teal
+            ['#ffb74d', '#e67e22'], // Orange
+            ['#4fc3f7', '#0984e3'], // Blue
+            ['#ff8a65', '#d35400']  // Coral
+        ];
+        let paletteIndex = 0;
 
         function startTimer() {
             clearInterval(timerInterval); seconds = 0;
@@ -110,17 +127,28 @@
             }, 1000);
         }
 
-        window.toggleTheme = () => document.body.classList.toggle('light-mode');
-        window.changeColor = () => {
-            colorIndex = (colorIndex + 1) % colors.length;
-            document.documentElement.style.setProperty('--accent', colors[colorIndex]);
+        window.toggleTheme = () => {
+            document.body.classList.toggle('light-mode');
+            updateColors();
         };
+
+        window.changeColor = () => {
+            paletteIndex = (paletteIndex + 1) % palettes.length;
+            updateColors();
+        };
+
+        function updateColors() {
+            const isLight = document.body.classList.contains('light-mode');
+            const color = isLight ? palettes[paletteIndex][1] : palettes[paletteIndex][0];
+            document.documentElement.style.setProperty('--accent', color);
+            document.documentElement.style.setProperty('--fixed-text', color);
+        }
 
         window.toggleNotes = () => { 
             isNotesMode = !isNotesMode; 
             const btn = document.getElementById('notes-btn');
             btn.textContent = isNotesMode ? "Notes On" : "Notes Off";
-            btn.style.background = isNotesMode ? "#03dac6" : "var(--accent)"; 
+            btn.style.filter = isNotesMode ? "brightness(1.2)" : "none"; 
         };
 
         function isValid(b, r, c, k) {
@@ -148,7 +176,7 @@
             solve(board); solution = board.map(row => [...row]);
             const diff = document.getElementById('difficulty').value;
             const puzzle = board.map(row => row.map(v => Math.random() * 81 < (81 - diff) ? v : 0));
-            render(puzzle); updateNumpadStatus();
+            render(puzzle); updateNumpadStatus(); updateColors();
         };
 
         function render(p) {
