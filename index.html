@@ -10,18 +10,15 @@
     
     <style>
         :root {
-            /* Default Dark Variables */
             --bg: #121212; --cell-bg: #1e1e1e; --text: #e0e0e0;
             --border: #333; --thick: #888;
             --highlight: #2c2c2c; --match: #3d3d3d; --error: #cf6679;
-            /* Dynamic Variables */
-            --accent: #bb86fc; 
-            --fixed-text: var(--accent);
+            --accent: #bb86fc; --fixed-text: var(--accent);
         }
         body.light-mode {
-            --bg: #ffffff; --cell-bg: #f8f9fa; --text: #212529;
+            --bg: #ffffff; --cell-bg: #f8f9fa; --text: #1a1a1a;
             --border: #dee2e6; --thick: #495057;
-            --highlight: #e9ecef; --match: #dee2e6; --error: #d00000;
+            --highlight: #f1f3f5; --match: #e2e6ea; --error: #d00000;
         }
         body { 
             background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif;
@@ -39,19 +36,19 @@
         .cell {
             background: var(--cell-bg); display: flex; align-items: center; justify-content: center;
             font-size: 1.5rem; cursor: pointer; border: 0.5px solid var(--border); box-sizing: border-box;
-            color: var(--text);
+            color: var(--text); transition: background 0.1s;
         }
         .cell:nth-child(3n) { border-right: 3px solid var(--thick); }
         .cell:nth-child(9n) { border-right: none; }
         .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 3px solid var(--thick); }
 
         .cell.related { background: var(--highlight); }
-        .cell.same-num { background: var(--match); }
-        .cell.selected { background: var(--accent) !important; color: #fff !important; }
-        body:not(.light-mode) .cell.selected { color: #000 !important; }
+        .cell.same-num { background: var(--match); outline: 2px inset rgba(255,255,255,0.05); }
+        .cell.selected { background: var(--accent) !important; color: #ffffff !important; }
         
         .cell.fixed { font-weight: 900; color: var(--fixed-text); }
-        .cell.conflict { color: var(--error) !important; font-weight: bold; }
+        /* Only shows red if hardMode is false */
+        body:not(.hard-mode-active) .cell.conflict { color: var(--error) !important; font-weight: bold; text-decoration: underline; }
 
         .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
         .numpad button { padding: 12px 0; border: none; border-radius: 8px; background: #2a2a2a; color: white; font-weight: bold; font-size: 1.3rem; }
@@ -59,10 +56,7 @@
         body.light-mode .numpad button { background: #eee; color: #222; border: 1px solid #ccc; }
         
         .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 94vw; max-width: 420px; margin-top: 10px; }
-        .controls button, select { padding: 10px 2px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: bold; font-size: 0.7rem; }
-        /* Ensure text visibility on buttons */
-        body.light-mode .controls button { color: white !important; }
-        body:not(.light-mode) .controls button { color: black !important; }
+        .controls button, select { padding: 10px 2px; border: none; border-radius: 6px; background: var(--accent); color: white !important; font-weight: bold; font-size: 0.65rem; text-transform: uppercase; }
         
         select { background: #333 !important; color: white !important; text-align-last: center; }
 
@@ -89,8 +83,8 @@
     <div class="controls">
         <select id="difficulty" onchange="initGame()"><option value="30">Easy</option><option value="45">Med</option><option value="60">Hard</option></select>
         <button onclick="undoMove()">Undo</button>
-        <button onclick="getHint()" style="background:#00b894 !important;">Hint</button>
-        <button onclick="initGame()" style="background:#f39c12 !important;">New</button>
+        <button onclick="getHint()" style="background:#009688 !important;">Hint</button>
+        <button onclick="toggleHardMode()" id="hard-btn">Hard Off</button>
         <button onclick="toggleTheme()">Theme</button>
         <button onclick="changeColor()">Color</button>
         <button onclick="toggleNotes()" id="notes-btn" style="grid-column: span 3; margin-top: 2px;">Notes Off</button>
@@ -101,41 +95,40 @@
             <h1 style="color:var(--accent); margin-top:0;">VICTORY!</h1>
             <div id="star-container" style="font-size:2.5rem; margin:10px 0;">⭐⭐⭐</div>
             <p id="final-time" style="font-size:1.2rem;">Time: 00:00</p>
-            <button onclick="initGame()" style="padding:12px 24px; background:var(--accent); border:none; border-radius:8px; font-weight:bold; width:100%; color: inherit;">Play Again</button>
+            <button onclick="initGame()" style="padding:12px 24px; background:var(--accent); border:none; border-radius:8px; font-weight:bold; width:100%; color: white;">Play Again</button>
         </div>
     </div>
 
     <script>
         "use strict";
         const gridDiv = document.getElementById('grid'), timerDiv = document.getElementById('timer'), overlay = document.getElementById('overlay');
-        let solution = [], seconds = 0, timerInterval, isNotesMode = false, selectedCell = null, history = [];
+        let solution = [], seconds = 0, timerInterval, isNotesMode = false, isHardMode = false, selectedCell = null, history = [];
         
         const palettes = [
             ['#bb86fc', '#6200ee'], // Purple
-            ['#03dac6', '#00796b'], // Teal (darkened for light mode)
-            ['#ffb74d', '#d35400'], // Orange (darkened for light mode)
+            ['#03dac6', '#00796b'], // Teal
+            ['#ffb74d', '#d35400'], // Orange
             ['#4fc3f7', '#0984e3'], // Blue
-            ['#ff8a65', '#c0392b']  // Reddish
+            ['#ff8a65', '#c0392b']  // Coral/Red
         ];
         let paletteIndex = 0;
 
         function updateColors() {
             const isLight = document.body.classList.contains('light-mode');
             const chosenColor = isLight ? palettes[paletteIndex][1] : palettes[paletteIndex][0];
-            
-            // Apply to the root so CSS variables update everywhere
             document.documentElement.style.setProperty('--accent', chosenColor);
             document.documentElement.style.setProperty('--fixed-text', chosenColor);
         }
 
-        window.toggleTheme = () => {
-            document.body.classList.toggle('light-mode');
-            updateColors();
-        };
-
-        window.changeColor = () => {
-            paletteIndex = (paletteIndex + 1) % palettes.length;
-            updateColors();
+        window.toggleTheme = () => { document.body.classList.toggle('light-mode'); updateColors(); };
+        window.changeColor = () => { paletteIndex = (paletteIndex + 1) % palettes.length; updateColors(); };
+        
+        window.toggleHardMode = () => {
+            isHardMode = !isHardMode;
+            document.body.classList.toggle('hard-mode-active', isHardMode);
+            const btn = document.getElementById('hard-btn');
+            btn.textContent = isHardMode ? "Hard On" : "Hard Off";
+            btn.style.background = isHardMode ? "#e91e63" : "var(--accent)";
         };
 
         function startTimer() {
@@ -227,7 +220,7 @@
         };
 
         window.getHint = () => {
-            const empties = Array.from(document.querySelectorAll('.cell')).filter(c => !c.classList.contains('fixed') && c.textContent === '');
+            const empties = Array.from(document.querySelectorAll('.cell')).filter(c => !c.classList.contains('fixed') && (c.textContent === '' || c.textContent.includes('n')));
             if (empties.length === 0) return;
             const target = empties[Math.floor(Math.random() * empties.length)];
             selectedCell = target; seconds += 30;
@@ -245,11 +238,16 @@
 
         function checkAutoValidate() {
             const cells = Array.from(document.querySelectorAll('.cell'));
-            if (cells.every(c => (c.dataset.val || c.textContent) == solution[c.dataset.r][c.dataset.c])) {
-                clearInterval(timerInterval);
-                document.getElementById('star-container').textContent = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
-                document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
-                overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(10px)';
+            const filledCount = cells.filter(c => c.textContent !== '' && !c.textContent.includes('n')).length;
+            if (filledCount === 81) {
+                if (cells.every(c => (c.dataset.val || c.textContent) == solution[c.dataset.r][c.dataset.c])) {
+                    clearInterval(timerInterval);
+                    document.getElementById('star-container').textContent = seconds < 300 ? "⭐⭐⭐" : (seconds < 600 ? "⭐⭐" : "⭐");
+                    document.getElementById('final-time').textContent = `Time: ${timerDiv.textContent}`;
+                    overlay.style.display = 'flex'; gridDiv.style.filter = 'blur(10px)';
+                } else if (!isHardMode) {
+                   alert("Not quite! Check the numbers in red.");
+                }
             }
         }
         window.onload = initGame;
