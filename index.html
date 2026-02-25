@@ -48,6 +48,18 @@
         
         .cell.fixed { font-weight: 900; color: var(--fixed-text); }
         
+        .cell.is-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    line-height: 0.8rem;
+    word-break: break-all;
+    padding: 2px;
+    color: var(--text); /* Notes usually match theme text color */
+    opacity: 0.8;
+        }
+        
         /* THE FIX: Conflict Visibility */
         body:not(.hard-mode-active) .cell.conflict { 
             color: #ff1744 !important; 
@@ -209,19 +221,61 @@
             cell.classList.add('selected');
         }
 
-        window.handleInput = (num, isUndo = false) => {
-            if (!selectedCell || selectedCell.classList.contains('fixed')) return;
-            if (!isUndo) history.push({ r: selectedCell.dataset.r, c: selectedCell.dataset.c, v: selectedCell.dataset.val || '', t: selectedCell.textContent, s: selectedCell.style.fontSize });
+        // 1. Updated handleInput to support multiple notes
+window.handleInput = (num, isUndo = false) => {
+    if (!selectedCell || selectedCell.classList.contains('fixed')) return;
 
-            if (num === null) { selectedCell.textContent = ''; delete selectedCell.dataset.val; selectedCell.classList.remove('conflict'); }
-            else if (isNotesMode) { selectedCell.textContent = `n${num}`; selectedCell.style.fontSize = "0.75rem"; selectedCell.classList.remove('conflict'); }
-            else { 
-                selectedCell.textContent = num; selectedCell.dataset.val = num; selectedCell.style.fontSize = "1.5rem"; 
-                if (parseInt(num) !== solution[selectedCell.dataset.r][selectedCell.dataset.c]) selectedCell.classList.add('conflict');
-                else selectedCell.classList.remove('conflict');
-            }
-            highlight(selectedCell); updateNumpadStatus(); checkAutoValidate();
-        };
+    // Save history for Undo
+    if (!isUndo) {
+        history.push({ 
+            r: selectedCell.dataset.r, 
+            c: selectedCell.dataset.c, 
+            v: selectedCell.dataset.val || '', 
+            t: selectedCell.textContent, 
+            s: selectedCell.style.fontSize,
+            isNote: selectedCell.classList.contains('is-note')
+        });
+    }
+
+    if (num === null) {
+        // Clear everything
+        selectedCell.textContent = '';
+        delete selectedCell.dataset.val;
+        selectedCell.classList.remove('conflict', 'is-note');
+    } else if (isNotesMode) {
+        // MULTI-NOTE LOGIC
+        selectedCell.classList.add('is-note');
+        selectedCell.classList.remove('conflict');
+        selectedCell.style.fontSize = "0.65rem";
+        
+        let currentNotes = selectedCell.textContent.split(' ').filter(x => x !== '');
+        if (currentNotes.includes(num.toString())) {
+            // Remove if exists
+            currentNotes = currentNotes.filter(n => n !== num.toString());
+        } else {
+            // Add and sort
+            currentNotes.push(num.toString());
+            currentNotes.sort((a, b) => a - b);
+        }
+        selectedCell.textContent = currentNotes.join(' ');
+        delete selectedCell.dataset.val;
+    } else {
+        // NORMAL DIGIT LOGIC
+        selectedCell.classList.remove('is-note');
+        selectedCell.textContent = num;
+        selectedCell.dataset.val = num;
+        selectedCell.style.fontSize = "1.5rem";
+        
+        if (parseInt(num) !== solution[selectedCell.dataset.r][selectedCell.dataset.c]) {
+            selectedCell.classList.add('conflict');
+        } else {
+            selectedCell.classList.remove('conflict');
+        }
+    }
+    highlight(selectedCell);
+    updateNumpadStatus();
+    checkAutoValidate();
+};
 
         window.undoMove = () => {
             if (history.length === 0) return;
